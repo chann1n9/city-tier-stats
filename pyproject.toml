@@ -1,0 +1,23 @@
+[project]
+name = "city-tier-stats"
+version = "0.1.0"
+description = ""
+authors = [
+    {name = "chann1n9",email = "mactavishking@gmail.com"}
+]
+readme = "README.md"
+requires-python = ">=3.12,<3.15"
+dependencies = [
+    "pandas (>=3.0.2,<4.0.0)",
+    "pyyaml (>=6.0.3,<7.0.0)",
+    "openpyxl (>=3.1.5,<4.0.0)"
+]
+
+
+[build-system]
+requires = ["poetry-core>=2.0.0,<3.0.0"]
+build-backend = "poetry.core.masonry.api"
+
+[tool.poetry.group.dev.dependencies]
+nuitka = "^4.0.8"
+
