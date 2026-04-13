@@ -4,20 +4,31 @@
 from __future__ import annotations
 
 import argparse
+import csv
+import io
 import sys
 import warnings
 from collections import Counter
 from pathlib import Path
-from typing import TYPE_CHECKING, Any, Final
+from typing import Any, Final
 
 import yaml
-
-if TYPE_CHECKING:
-    import pandas as pd
+from openpyxl import Workbook, load_workbook
 
 
 DEFAULT_CITY_TIERS_FILE: Final = "city_tiers.yaml"
 LOCATION_COLUMN: Final = "归属地"
+DETAIL_COLUMNS: Final = ("归属地", "城市", "城市归一化", "分层代码", "分层")
+CSV_ENCODINGS: Final = (
+    "utf-8-sig",
+    "utf-16",
+    "utf-16le",
+    "utf-16be",
+    "gb18030",
+    "gbk",
+    "big5",
+    "cp950",
+)
 
 
 TIER_ORDER: Final = (
@@ -90,30 +101,101 @@ def is_empty_value(value: Any) -> bool:
         return False
 
 
-def read_location_column(file_path: str | Path, column_name: str = LOCATION_COLUMN) -> "pd.Series":
-    """Read the location column from an Excel or CSV file."""
-    import pandas as pd
+def read_xlsx_location_column(path: Path, column_name: str) -> list[Any]:
+    """Read the location column from an XLSX file."""
+    with warnings.catch_warnings():
+        warnings.filterwarnings(
+            "ignore",
+            message="Workbook contains no default style, apply openpyxl's default",
+            category=UserWarning,
+        )
+        workbook = load_workbook(path, read_only=True, data_only=True)
 
+    try:
+        sheet = workbook.active
+        rows = sheet.iter_rows(values_only=True)
+        try:
+            headers = [str(value).strip() if value is not None else "" for value in next(rows)]
+        except StopIteration:
+            raise ValueError("文件没有表头行") from None
+
+        if column_name not in headers:
+            raise ValueError(f"文件中没有找到列：{column_name}")
+
+        column_index = headers.index(column_name)
+        locations: list[Any] = []
+        for row in rows:
+            value = row[column_index] if column_index < len(row) else None
+            locations.append(value)
+        return locations
+    finally:
+        workbook.close()
+
+
+def decode_csv_content(path: Path) -> str:
+    """Decode CSV bytes with common encodings used by Excel and Chinese systems."""
+    content = path.read_bytes()
+    last_error: UnicodeDecodeError | None = None
+    for encoding in CSV_ENCODINGS:
+        try:
+            return content.decode(encoding)
+        except UnicodeDecodeError as error:
+            last_error = error
+
+    try:
+        return content.decode("gb18030", errors="replace")
+    except UnicodeDecodeError:
+        raise ValueError(f"无法识别 CSV 文件编码，已尝试：{', '.join(CSV_ENCODINGS)}") from last_error
+
+
+def sniff_csv_dialect(sample: str) -> csv.Dialect:
+    """Detect CSV delimiter, falling back to Excel CSV style."""
+    try:
+        return csv.Sniffer().sniff(sample, delimiters=",\t;，")
+    except csv.Error:
+        return csv.excel
+
+
+def clean_csv_header(header: str | None) -> str:
+    """Normalize CSV header text."""
+    if header is None:
+        return ""
+    return header.strip().lstrip("\ufeff\ufffe\ufffd")
+
+
+def read_csv_location_column(path: Path, column_name: str) -> list[Any]:
+    """Read the location column from a CSV file."""
+    content = decode_csv_content(path)
+    reader = csv.DictReader(
+        io.StringIO(content),
+        dialect=sniff_csv_dialect(content[:4096]),
+    )
+    if reader.fieldnames is None:
+        raise ValueError("文件没有表头行")
+
+    header_map = {clean_csv_header(header): header for header in reader.fieldnames}
+    if column_name not in header_map:
+        found_columns = ", ".join(clean_csv_header(header) for header in reader.fieldnames)
+        raise ValueError(f"文件中没有找到列：{column_name}；当前列：{found_columns}")
+
+    raw_column_name = header_map[column_name]
+    locations: list[Any] = []
+    for row in reader:
+        locations.append(row.get(raw_column_name))
+    return locations
+
+
+def read_location_column(file_path: str | Path, column_name: str = LOCATION_COLUMN) -> list[Any]:
+    """Read the location column from an Excel or CSV file."""
     path = Path(file_path)
     suffix = path.suffix.lower()
 
     if suffix == ".xlsx":
-        with warnings.catch_warnings():
-            warnings.filterwarnings(
-                "ignore",
-                message="Workbook contains no default style, apply openpyxl's default",
-                category=UserWarning,
-            )
-            data = pd.read_excel(path, engine="openpyxl")
+        return read_xlsx_location_column(path, column_name)
     elif suffix == ".csv":
-        data = pd.read_csv(path)
+        return read_csv_location_column(path, column_name)
     else:
         raise ValueError(f"不支持的文件类型：{suffix or '无扩展名'}")
-
-    if column_name not in data.columns:
-        raise ValueError(f"文件中没有找到列：{column_name}")
-
-    return data[column_name]
 
 
 def extract_city_name(raw_location: Any) -> str:
@@ -209,11 +291,11 @@ def match_location_tier(raw_location: Any, city_to_tier: dict[str, str]) -> str:
 
 
 def calculate_tier_stats(
-    locations: "pd.Series",
+    locations: list[Any],
     city_to_tier: dict[str, str],
 ) -> list[dict[str, int | float | str]]:
-    """Count city tiers and percentages from a location series."""
-    tiers = locations.map(lambda value: match_location_tier(value, city_to_tier))
+    """Count city tiers and percentages from location values."""
+    tiers = [match_location_tier(value, city_to_tier) for value in locations]
     counts = Counter(tiers)
     total = len(locations)
 
@@ -233,29 +315,44 @@ def calculate_tier_stats(
 
 
 def build_location_details(
-    locations: "pd.Series",
+    locations: list[Any],
     city_to_tier: dict[str, str],
-) -> "pd.DataFrame":
+) -> list[dict[str, Any]]:
     """Build row-level location matching details."""
-    import pandas as pd
-
-    details = pd.DataFrame({"归属地": locations})
-    details["城市"] = details["归属地"].map(extract_city_name)
-    details["城市归一化"] = details["城市"].map(normalize_city_name)
-    details["分层代码"] = details["城市"].map(lambda value: match_city_tier(value, city_to_tier))
-    details["分层"] = details["分层代码"].map(TIER_LABELS)
+    details: list[dict[str, Any]] = []
+    for raw_location in locations:
+        city = extract_city_name(raw_location)
+        normalized_city = normalize_city_name(city)
+        tier = match_city_tier(city, city_to_tier)
+        details.append(
+            {
+                "归属地": raw_location,
+                "城市": city,
+                "城市归一化": normalized_city,
+                "分层代码": tier,
+                "分层": TIER_LABELS[tier],
+            }
+        )
     return details
 
 
-def write_location_details(details: "pd.DataFrame", output_path: str | Path) -> None:
+def write_location_details(details: list[dict[str, Any]], output_path: str | Path) -> None:
     """Write row-level location matching details to a CSV or XLSX file."""
     path = Path(output_path)
     suffix = path.suffix.lower()
 
     if suffix == ".xlsx":
-        details.to_excel(path, index=False)
+        workbook = Workbook()
+        sheet = workbook.active
+        sheet.append(DETAIL_COLUMNS)
+        for row in details:
+            sheet.append([row.get(column, "") for column in DETAIL_COLUMNS])
+        workbook.save(path)
     elif suffix == ".csv":
-        details.to_csv(path, index=False, encoding="utf-8-sig")
+        with path.open("w", encoding="utf-8-sig", newline="") as file:
+            writer = csv.DictWriter(file, fieldnames=DETAIL_COLUMNS)
+            writer.writeheader()
+            writer.writerows(details)
     else:
         raise ValueError(f"明细文件只支持 .xlsx、.csv：{suffix or '无扩展名'}")
 
