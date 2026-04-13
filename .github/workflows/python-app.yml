@@ -39,6 +39,7 @@ jobs:
           python -m nuitka `
             --standalone `
             --static-libpython=no `
+            --assume-yes-for-downloads `
             --output-dir=dist-nuitka `
             --output-filename=city-tier-stats `
             --include-data-files=city_tiers.yaml=city_tiers.yaml `
