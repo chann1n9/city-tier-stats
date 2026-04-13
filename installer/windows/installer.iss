@@ -13,7 +13,7 @@ Source: "{#ProjectRoot}\dist-nuitka\city_tier_stats.dist\*"; DestDir: "{app}"; F
 
 [Registry]
 ; ✅ PATH
-Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Flags: preservestringtype uninsdeletevalue
+Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; ValueData: "{olddata};{app}"; Flags: preservestringtype
 
 ; ✅ 右键菜单
 Root: HKCR; Subkey: "*\shell\CityTierStats"; ValueType: string; ValueData: "Analyze with City Tier Stats"; Flags: uninsdeletekey
