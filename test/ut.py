@@ -11,6 +11,7 @@ from pathlib import Path
 import pytest
 import yaml
 from openpyxl import Workbook
+from openpyxl import load_workbook as lw
 
 from city_tier_stats import (
     TIER_LABELS,
@@ -504,7 +505,6 @@ class TestWriteLocationDetails:
     def test_write_xlsx(self, tmp_path: Path):
         path = tmp_path / "out.xlsx"
         write_location_details(self.SAMPLE_DETAILS, path)
-        from openpyxl import load_workbook as lw
         wb = lw(path)
         ws = wb.active
         rows = list(ws.iter_rows(values_only=True))
@@ -525,34 +525,34 @@ class TestIntegration:
     """End-to-end tests using the real city_tiers.yaml config."""
 
     @pytest.fixture()
-    def real_mapping(self) -> dict[str, str]:
+    def city_tier_mapping_from_config(self) -> dict[str, str]:
         config = Path(__file__).resolve().parent.parent / "city_tiers.yaml"
         return load_city_tier_mapping(config)
 
-    def test_beijing_is_first(self, real_mapping):
+    def test_beijing_is_first(self, city_tier_mapping_from_config):
         # 直辖市格式: 省份-城市-区, 北京市的城市段也是"北京"
-        assert match_location_tier("北京市-北京-朝阳区", real_mapping) == "first"
+        assert match_location_tier("北京市-北京-朝阳区", city_tier_mapping_from_config) == "first"
 
-    def test_chengdu_is_new_first(self, real_mapping):
-        assert match_location_tier("四川-成都-高新区", real_mapping) == "new_first"
+    def test_chengdu_is_new_first(self, city_tier_mapping_from_config):
+        assert match_location_tier("四川-成都-高新区", city_tier_mapping_from_config) == "new_first"
 
-    def test_xiamen_is_second(self, real_mapping):
-        assert match_location_tier("福建-厦门-思明区", real_mapping) == "second"
+    def test_xiamen_is_second(self, city_tier_mapping_from_config):
+        assert match_location_tier("福建-厦门-思明区", city_tier_mapping_from_config) == "second"
 
-    def test_kashgar_is_fourth(self, real_mapping):
-        assert match_location_tier("新疆-喀什-喀什市", real_mapping) == "fourth"
+    def test_kashgar_is_fourth(self, city_tier_mapping_from_config):
+        assert match_location_tier("新疆-喀什-喀什市", city_tier_mapping_from_config) == "fourth"
 
-    def test_unknown_is_other(self, real_mapping):
-        assert match_location_tier("火星-某市-某区", real_mapping) == "other"
+    def test_unknown_is_other(self, city_tier_mapping_from_config):
+        assert match_location_tier("火星-某市-某区", city_tier_mapping_from_config) == "other"
 
-    def test_calculate_stats_with_real_mapping(self, real_mapping):
+    def test_calculate_stats_with_real_mapping(self, city_tier_mapping_from_config):
         locations = [
             "北京市-北京-朝阳",
             "四川-成都-高新",
             "新疆-喀什-喀什市",
             "未知省-未知市",
         ]
-        stats = calculate_tier_stats(locations, real_mapping)
+        stats = calculate_tier_stats(locations, city_tier_mapping_from_config)
         tier_map = {row["tier"]: row for row in stats}
         assert tier_map["first"]["count"] == 1
         assert tier_map["new_first"]["count"] == 1
