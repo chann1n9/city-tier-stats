@@ -7,7 +7,7 @@ OutputDir=Output
 OutputBaseFilename=CityTierStatsSetup
 
 [Files]
-Source: "dist-nuitka\city-tier-stats.dist\*"; DestDir: "{app}"; Flags: recursesubdirs
+Source: "..\..\dist-nuitka\city-tier-stats.dist\*"; DestDir: "{app}"; Flags: recursesubdirs
 
 [Icons]
 Name: "{group}\City Tier Stats"; Filename: "{app}\city-tier-stats.exe"
