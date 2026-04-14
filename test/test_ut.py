@@ -432,7 +432,10 @@ class TestResolveConfigPath:
 
     def test_no_path_finds_default(self, tmp_path: Path, monkeypatch):
         cfg = tmp_path / "city_tiers.yaml"
-        cfg.write_text(yaml.dump({"tiers": {"first": ["北京市"]}}, allow_unicode=True))
+        cfg.write_text(
+            yaml.dump({"tiers": {"first": ["北京市"]}}, allow_unicode=True),
+            encoding="utf-8",
+        )
         monkeypatch.chdir(tmp_path)
         result = resolve_config_path()
         assert result == cfg
@@ -451,7 +454,7 @@ class TestLoadCityTierMapping:
 
     def test_missing_tiers_key_raises(self, tmp_path: Path):
         cfg = tmp_path / "bad.yaml"
-        cfg.write_text(yaml.dump({"cities": []}))
+        cfg.write_text(yaml.dump({"cities": []}), encoding="utf-8")
         with pytest.raises(ValueError, match="缺少 tiers"):
             load_city_tier_mapping(cfg)
 
