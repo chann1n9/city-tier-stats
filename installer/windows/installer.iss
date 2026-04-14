@@ -27,9 +27,9 @@ const
   AppRegistryKey = 'Software\City Tier Stats';
   PathValueName = 'Path';
   AddedUserPathValueName = 'AddedUserPath';
-  HWND_BROADCAST = $FFFF;
-  WM_SETTINGCHANGE = $001A;
-  SMTO_ABORTIFHUNG = $0002;
+  CtsHwndBroadcast = $FFFF;
+  CtsWmSettingChange = $001A;
+  CtsSmtoAbortIfHung = $0002;
 
 function SendMessageTimeout(hWnd: Longint; Msg: Longint; wParam: Longint;
   lParam: String; fuFlags: Longint; uTimeout: Longint;
@@ -150,8 +150,8 @@ procedure BroadcastEnvironmentChanged;
 var
   ResultCode: Longint;
 begin
-  SendMessageTimeout(HWND_BROADCAST, WM_SETTINGCHANGE, 0, 'Environment',
-    SMTO_ABORTIFHUNG, 5000, ResultCode);
+  SendMessageTimeout(CtsHwndBroadcast, CtsWmSettingChange, 0, 'Environment',
+    CtsSmtoAbortIfHung, 5000, ResultCode);
 end;
 
 procedure AddInstallDirToUserPath;
