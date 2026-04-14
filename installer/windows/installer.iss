@@ -17,4 +17,4 @@ Root: HKCU; Subkey: "Environment"; ValueType: expandsz; ValueName: "Path"; Value
 
 ; ✅ 右键菜单
 Root: HKCR; Subkey: "*\shell\CityTierStats"; ValueType: string; ValueData: "Analyze with City Tier Stats"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: """{app}\city-tier-stats.exe"" ""%1"""
+Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: "cmd /k ""\""{app}\city-tier-stats.exe\" \"\"%1\"\""""
