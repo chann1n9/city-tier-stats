@@ -66,6 +66,9 @@ PY
         run: |
           set -euo pipefail
 
+          git config user.name "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "Tag already exists on origin: ${TAG}" >&2
             exit 1
