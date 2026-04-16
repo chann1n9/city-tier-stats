@@ -111,6 +111,7 @@ if [[ "${UNINSTALL}" -eq 1 ]]; then
 
   rm -f "${SUPPORT_DIR}/finder-quick-action.sh" "${SUPPORT_DIR}/tool-path"
   rmdir "${SUPPORT_DIR}" 2>/dev/null || true
+  /System/Library/CoreServices/pbs -update >/dev/null 2>&1 || true
   echo "Removed Finder Quick Action: ${SERVICE_NAME}"
   exit 0
 fi

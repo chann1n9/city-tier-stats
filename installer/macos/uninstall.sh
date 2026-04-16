@@ -17,7 +17,7 @@ CONSOLE_USER="$(/usr/bin/stat -f %Su /dev/console)"
 if [ -n "$CONSOLE_USER" ] && [ "$CONSOLE_USER" != "root" ]; then
   USER_HOME="$(/usr/bin/dscl . -read "/Users/$CONSOLE_USER" NFSHomeDirectory 2>/dev/null | /usr/bin/awk '{print $2}')"
   if [ -n "$USER_HOME" ] && [ -x "$QUICK_ACTION_INSTALLER" ]; then
-    /usr/bin/sudo -u "$CONSOLE_USER" HOME="$USER_HOME" "$QUICK_ACTION_INSTALLER" --uninstall || true
+    /usr/bin/sudo -u "$CONSOLE_USER" HOME="$USER_HOME" "$QUICK_ACTION_INSTALLER" --uninstall
   fi
 fi
 
