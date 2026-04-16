@@ -24,35 +24,35 @@ jobs:
           set -euo pipefail
           VERSION="$(
             python <<'PY'
-from pathlib import Path
-import sys
-import tomllib
-
-pyproject_path = Path("pyproject.toml")
-
-try:
-    with pyproject_path.open("rb") as f:
-        data = tomllib.load(f)
-except FileNotFoundError:
-    print("pyproject.toml not found.", file=sys.stderr)
-    sys.exit(1)
-except tomllib.TOMLDecodeError as exc:
-    print(f"Invalid TOML in pyproject.toml: {exc}", file=sys.stderr)
-    sys.exit(1)
-try:
-    project = data["project"]
-except KeyError:
-    print("Missing [project] section in pyproject.toml.", file=sys.stderr)
-    sys.exit(1)
-
-try:
-    version = project["version"]
-except KeyError:
-    print("Missing version field in [project] section of pyproject.toml.", file=sys.stderr)
-    sys.exit(1)
-
-print(version)
-PY
+          from pathlib import Path
+          import sys
+          import tomllib
+          
+          pyproject_path = Path("pyproject.toml")
+          
+          try:
+              with pyproject_path.open("rb") as f:
+                  data = tomllib.load(f)
+          except FileNotFoundError:
+              print("pyproject.toml not found.", file=sys.stderr)
+              sys.exit(1)
+          except tomllib.TOMLDecodeError as exc:
+              print(f"Invalid TOML in pyproject.toml: {exc}", file=sys.stderr)
+              sys.exit(1)
+          try:
+              project = data["project"]
+          except KeyError:
+              print("Missing [project] section in pyproject.toml.", file=sys.stderr)
+              sys.exit(1)
+          
+          try:
+              version = project["version"]
+          except KeyError:
+              print("Missing version field in [project] section of pyproject.toml.", file=sys.stderr)
+              sys.exit(1)
+          
+          print(version)
+          PY
           )"
           TAG="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
