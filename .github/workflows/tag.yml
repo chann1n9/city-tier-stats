@@ -1,0 +1,86 @@
+name: Tag
+
+on:
+  workflow_dispatch:
+
+permissions:
+  contents: write
+
+jobs:
+  create-tag:
+    name: Create version tag from pyproject.toml
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Resolve version from pyproject.toml
+        id: version
+        shell: bash
+        run: |
+          set -euo pipefail
+          VERSION="$(
+            python <<'PY'
+from pathlib import Path
+import sys
+import tomllib
+
+pyproject_path = Path("pyproject.toml")
+
+try:
+    with pyproject_path.open("rb") as f:
+        data = tomllib.load(f)
+except FileNotFoundError:
+    print("pyproject.toml not found.", file=sys.stderr)
+    sys.exit(1)
+except tomllib.TOMLDecodeError as exc:
+    print(f"Invalid TOML in pyproject.toml: {exc}", file=sys.stderr)
+    sys.exit(1)
+try:
+    project = data["project"]
+except KeyError:
+    print("Missing [project] section in pyproject.toml.", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    version = project["version"]
+except KeyError:
+    print("Missing version field in [project] section of pyproject.toml.", file=sys.stderr)
+    sys.exit(1)
+
+print(version)
+PY
+          )"
+          TAG="v${VERSION}"
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+          echo "tag=$TAG" >> "$GITHUB_OUTPUT"
+
+      - name: Ensure version tag and release do not already exist
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+
+          if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
+            echo "Tag already exists on origin: ${TAG}" >&2
+            exit 1
+          fi
+
+          if gh release view "${TAG}" >/dev/null 2>&1; then
+            echo "GitHub release already exists: ${TAG}" >&2
+            exit 1
+          fi
+
+      - name: Create and push tag
+        shell: bash
+        env:
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          git tag "${TAG}"
+          git push origin "${TAG}"
