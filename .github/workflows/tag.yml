@@ -33,15 +33,22 @@ pyproject_path = Path("pyproject.toml")
 try:
     with pyproject_path.open("rb") as f:
         data = tomllib.load(f)
-    version = data["project"]["version"]
 except FileNotFoundError:
     print("pyproject.toml not found.", file=sys.stderr)
     sys.exit(1)
 except tomllib.TOMLDecodeError as exc:
     print(f"Invalid TOML in pyproject.toml: {exc}", file=sys.stderr)
     sys.exit(1)
+try:
+    project = data["project"]
 except KeyError:
-    print("Missing [project].version in pyproject.toml.", file=sys.stderr)
+    print("Missing [project] section in pyproject.toml.", file=sys.stderr)
+    sys.exit(1)
+
+try:
+    version = project["version"]
+except KeyError:
+    print("Missing version field in [project] section of pyproject.toml.", file=sys.stderr)
     sys.exit(1)
 
 print(version)
