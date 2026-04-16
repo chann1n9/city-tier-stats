@@ -22,7 +22,31 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          VERSION="$(
+            python <<'PY'
+from pathlib import Path
+import sys
+import tomllib
+
+pyproject_path = Path("pyproject.toml")
+
+try:
+    with pyproject_path.open("rb") as f:
+        data = tomllib.load(f)
+    version = data["project"]["version"]
+except FileNotFoundError:
+    print("pyproject.toml not found.", file=sys.stderr)
+    sys.exit(1)
+except tomllib.TOMLDecodeError as exc:
+    print(f"Invalid TOML in pyproject.toml: {exc}", file=sys.stderr)
+    sys.exit(1)
+except KeyError:
+    print("Missing [project].version in pyproject.toml.", file=sys.stderr)
+    sys.exit(1)
+
+print(version)
+PY
+          )"
           TAG="v${VERSION}"
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
@@ -35,7 +59,6 @@ jobs:
         run: |
           set -euo pipefail
 
-          git fetch --tags --force
           if git ls-remote --exit-code --tags origin "refs/tags/${TAG}" >/dev/null 2>&1; then
             echo "Tag already exists on origin: ${TAG}" >&2
             exit 1
