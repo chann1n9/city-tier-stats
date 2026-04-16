@@ -1,6 +1,6 @@
 [project]
 name = "city-tier-stats"
-version = "0.1.0"
+version = "0.1.1"
 description = ""
 authors = [
     {name = "chann1n9",email = "mactavishking@gmail.com"}
