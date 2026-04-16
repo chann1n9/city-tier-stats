@@ -8,6 +8,8 @@ set -eu
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 : "${DIST_DIR:=$ROOT_DIR/dist-nuitka/city_tier_stats.dist}"
 : "${BUILD_DIR:=$ROOT_DIR/build/macos-pkg}"
+: "${SIGN_IDENTITY:=}"
+: "${SIGN_KEYCHAIN:=}"
 PKG_ROOT="$BUILD_DIR/root"
 SCRIPTS_DIR="$BUILD_DIR/scripts"
 PKG_OUTPUT="$BUILD_DIR/${APP_NAME}-${VERSION}.pkg"
@@ -69,13 +71,34 @@ fi
 POSTINSTALL
 chmod +x "$SCRIPTS_DIR/postinstall"
 
-pkgbuild \
-  --root "$PKG_ROOT" \
-  --scripts "$SCRIPTS_DIR" \
-  --identifier "$IDENTIFIER" \
-  --version "$VERSION" \
-  --install-location / \
-  "$PKG_OUTPUT"
+if [ -n "$SIGN_IDENTITY" ] && [ -n "$SIGN_KEYCHAIN" ]; then
+  pkgbuild \
+    --root "$PKG_ROOT" \
+    --scripts "$SCRIPTS_DIR" \
+    --identifier "$IDENTIFIER" \
+    --version "$VERSION" \
+    --install-location / \
+    --sign "$SIGN_IDENTITY" \
+    --keychain "$SIGN_KEYCHAIN" \
+    "$PKG_OUTPUT"
+elif [ -n "$SIGN_IDENTITY" ]; then
+  pkgbuild \
+    --root "$PKG_ROOT" \
+    --scripts "$SCRIPTS_DIR" \
+    --identifier "$IDENTIFIER" \
+    --version "$VERSION" \
+    --install-location / \
+    --sign "$SIGN_IDENTITY" \
+    "$PKG_OUTPUT"
+else
+  pkgbuild \
+    --root "$PKG_ROOT" \
+    --scripts "$SCRIPTS_DIR" \
+    --identifier "$IDENTIFIER" \
+    --version "$VERSION" \
+    --install-location / \
+    "$PKG_OUTPUT"
+fi
 
 echo "pkg 已生成: $PKG_OUTPUT"
 echo "安装后程序目录: /usr/local/$APP_NAME"
