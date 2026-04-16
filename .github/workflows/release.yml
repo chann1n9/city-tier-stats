@@ -13,9 +13,55 @@ permissions:
   contents: write
 
 jobs:
+  validate-release:
+    name: Validate Release Metadata
+    runs-on: ubuntu-latest
+
+    outputs:
+      version: ${{ steps.metadata.outputs.version }}
+      release_tag: ${{ steps.metadata.outputs.release_tag }}
+      notes_file: ${{ steps.metadata.outputs.notes_file }}
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Validate version, tag, and release note
+        id: metadata
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
+          EXPECTED_TAG="v${VERSION}"
+
+          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
+            RELEASE_TAG="${GITHUB_REF_NAME}"
+            if [ "${RELEASE_TAG}" != "${EXPECTED_TAG}" ]; then
+              echo "Release tag does not match pyproject.toml version." >&2
+              echo "Expected tag: ${EXPECTED_TAG}" >&2
+              echo "Actual tag:   ${RELEASE_TAG}" >&2
+              exit 1
+            fi
+          else
+            RELEASE_TAG="${EXPECTED_TAG}"
+          fi
+
+          NOTES_FILE="docs/release-notes/${RELEASE_TAG}.md"
+          if [ ! -f "${NOTES_FILE}" ]; then
+            echo "Release note not found: ${NOTES_FILE}" >&2
+            exit 1
+          fi
+
+          echo "version=${VERSION}" >> "$GITHUB_OUTPUT"
+          echo "release_tag=${RELEASE_TAG}" >> "$GITHUB_OUTPUT"
+          echo "notes_file=${NOTES_FILE}" >> "$GITHUB_OUTPUT"
+
   build-windows:
     name: Build Windows Installer
     runs-on: windows-2022
+    needs:
+      - validate-release
   
     steps:
       - name: Checkout
@@ -42,11 +88,7 @@ jobs:
       - name: Resolve package version
         shell: pwsh
         run: |
-          if ($env:GITHUB_REF_TYPE -eq "tag") {
-            $version = $env:GITHUB_REF_NAME -replace '^v', ''
-          } else {
-            $version = python -c "import tomllib; print(tomllib.load(open('pyproject.toml', 'rb'))['project']['version'])"
-          }
+          $version = "${{ needs.validate-release.outputs.version }}"
           "APP_VERSION=$version" | Out-File -FilePath $env:GITHUB_ENV -Append
   
       - name: Build with Nuitka
@@ -87,6 +129,8 @@ jobs:
   build-macos:
     name: Build macOS Installer
     runs-on: macos-15
+    needs:
+      - validate-release
 
     steps:
       - name: Checkout
@@ -113,11 +157,7 @@ jobs:
       - name: Resolve package version
         shell: bash
         run: |
-          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
-            VERSION="${GITHUB_REF_NAME#v}"
-          else
-            VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
-          fi
+          VERSION="${{ needs.validate-release.outputs.version }}"
           echo "VERSION=$VERSION" >> "$GITHUB_ENV"
           echo "APP_VERSION=$VERSION" >> "$GITHUB_ENV"
 
@@ -243,6 +283,7 @@ jobs:
     name: Publish GitHub Release
     runs-on: ubuntu-latest
     needs:
+      - validate-release
       - build-windows
       - build-macos
 
@@ -255,14 +296,8 @@ jobs:
         run: |
           set -euo pipefail
 
-          if [ "${GITHUB_REF_TYPE}" = "tag" ]; then
-            RELEASE_TAG="${GITHUB_REF_NAME}"
-          else
-            VERSION="$(python -c 'import tomllib; print(tomllib.load(open("pyproject.toml", "rb"))["project"]["version"])')"
-            RELEASE_TAG="v${VERSION}"
-          fi
-
-          NOTES_FILE="docs/release-notes/${RELEASE_TAG}.md"
+          RELEASE_TAG="${{ needs.validate-release.outputs.release_tag }}"
+          NOTES_FILE="${{ needs.validate-release.outputs.notes_file }}"
           if [ ! -f "$NOTES_FILE" ]; then
             echo "Release note not found: $NOTES_FILE" >&2
             exit 1
