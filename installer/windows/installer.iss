@@ -14,12 +14,16 @@ OutputBaseFilename=city-tier-stats-{#AppVersionValue}-setup
 
 [Files]
 Source: "{#ProjectRoot}\dist-nuitka\city_tier_stats.dist\*"; DestDir: "{app}"; Flags: recursesubdirs
+Source: "{#ProjectRoot}\installer\windows\cts-wrapper.ps1"; DestDir: "{app}"; Flags: ignoreversion
 
 [Registry]
 ; ✅ 右键菜单
 Root: HKCU; Subkey: "Software\City Tier Stats"; Flags: uninsdeletekeyifempty
 Root: HKCR; Subkey: "*\shell\CityTierStats"; ValueType: string; ValueData: "Analyze with City Tier Stats"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: "cmd /k ""echo Selected file: %1 & ""{app}\city-tier-stats.exe"" ""%1"""""; Flags: uninsdeletekey
+Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: """{sys}\WindowsPowerShell\v1.0\powershell.exe"" -NoProfile -ExecutionPolicy Bypass -NoExit -File ""{app}\cts-wrapper.ps1"" ""%1"""; Flags: uninsdeletekey
+
+[Icons]
+Name: "{usersendto}\City Tier Stats (Mutiple)"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\cts-wrapper.ps1""";
 
 [Code]
 const
