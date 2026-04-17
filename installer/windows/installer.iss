@@ -19,7 +19,7 @@ Source: "{#ProjectRoot}\dist-nuitka\city_tier_stats.dist\*"; DestDir: "{app}"; F
 ; ✅ 右键菜单
 Root: HKCU; Subkey: "Software\City Tier Stats"; Flags: uninsdeletekeyifempty
 Root: HKCR; Subkey: "*\shell\CityTierStats"; ValueType: string; ValueData: "Analyze with City Tier Stats"; Flags: uninsdeletekey
-Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: "cmd /v:on /k ""echo. & echo Selected file: %1 & echo. & start """""" """"{app}\city-tier-stats.exe"""" """"%1"""""""; Flags: uninsdeletekey
+Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: "cmd /k ""echo Selected file: %1 & """"{app}\city-tier-stats.exe"""" """"%1"""""""; Flags: uninsdeletekey
 
 [Code]
 const
