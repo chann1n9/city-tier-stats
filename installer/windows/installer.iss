@@ -31,6 +31,7 @@ const
   AppRegistryKey = 'Software\City Tier Stats';
   PathValueName = 'Path';
   AddedUserPathValueName = 'AddedUserPath';
+  LastInstallDirValueName = 'LastInstallDir';
   CtsHwndBroadcast = $FFFF;
   CtsWmSettingChange = $001A;
   CtsSmtoAbortIfHung = $0002;
@@ -158,12 +159,52 @@ begin
     CtsSmtoAbortIfHung, 5000, ResultCode);
 end;
 
+function RemoveManagedPathEntry(InstallDir: String): Boolean;
+var
+  Paths: String;
+  NewPaths: String;
+  AddedUserPath: String;
+begin
+  Result := False;
+  if (NormalizePathEntry(InstallDir) = '') then
+  begin
+    Exit;
+  end;
+
+  if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName,
+    AddedUserPath) and (AddedUserPath = '1') and
+    RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) and
+    PathContainsEntry(Paths, InstallDir) then
+  begin
+    NewPaths := RemovePathEntry(Paths, InstallDir);
+    if NewPaths <> Paths then
+    begin
+      RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, NewPaths);
+      BroadcastEnvironmentChanged;
+      Result := True;
+    end;
+  end;
+end;
+
 procedure AddInstallDirToUserPath;
 var
   Paths: String;
   InstallDir: String;
+  OldInstallDir: String;
 begin
   InstallDir := ExpandConstant('{app}');
+  if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName,
+    OldInstallDir) and (NormalizePathEntry(OldInstallDir) <> NormalizePathEntry(InstallDir)) then
+  begin
+    RemoveManagedPathEntry(OldInstallDir);
+  end;
+
+  OldInstallDir := ExpandConstant('{oldapp}');
+  if NormalizePathEntry(OldInstallDir) <> NormalizePathEntry(InstallDir) then
+  begin
+    RemoveManagedPathEntry(OldInstallDir);
+  end;
+
   if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) then
   begin
     Paths := '';
@@ -176,30 +217,15 @@ begin
     RegWriteStringValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName, '1');
     BroadcastEnvironmentChanged;
   end;
+
+  RegWriteStringValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName, InstallDir);
 end;
 
 procedure RemoveInstallDirFromUserPath;
-var
-  Paths: String;
-  NewPaths: String;
-  InstallDir: String;
-  AddedUserPath: String;
 begin
-  InstallDir := ExpandConstant('{app}');
-  if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName,
-    AddedUserPath) and (AddedUserPath = '1') and
-    RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) and
-    PathContainsEntry(Paths, InstallDir) then
-  begin
-    NewPaths := RemovePathEntry(Paths, InstallDir);
-    if NewPaths <> Paths then
-    begin
-      RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, NewPaths);
-      BroadcastEnvironmentChanged;
-    end;
-  end;
-
+  RemoveManagedPathEntry(ExpandConstant('{app}'));
   RegDeleteValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName);
+  RegDeleteValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
