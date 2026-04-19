@@ -190,19 +190,30 @@ procedure AddInstallDirToUserPath;
 var
   Paths: String;
   InstallDir: String;
-  OldInstallDir: String;
+  NormalizedInstallDir: String;
+  LastInstallDir: String;
+  NormalizedLastInstallDir: String;
+  OldAppDir: String;
+  NormalizedOldAppDir: String;
 begin
   InstallDir := ExpandConstant('{app}');
+  NormalizedInstallDir := NormalizePathEntry(InstallDir);
+
   if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName,
-    OldInstallDir) and (NormalizePathEntry(OldInstallDir) <> NormalizePathEntry(InstallDir)) then
+    LastInstallDir) then
   begin
-    RemoveManagedPathEntry(OldInstallDir);
+    NormalizedLastInstallDir := NormalizePathEntry(LastInstallDir);
+    if (NormalizedLastInstallDir <> '') and (NormalizedLastInstallDir <> NormalizedInstallDir) then
+    begin
+      RemoveManagedPathEntry(LastInstallDir);
+    end;
   end;
 
-  OldInstallDir := ExpandConstant('{oldapp}');
-  if NormalizePathEntry(OldInstallDir) <> NormalizePathEntry(InstallDir) then
+  OldAppDir := ExpandConstant('{oldapp}');
+  NormalizedOldAppDir := NormalizePathEntry(OldAppDir);
+  if (NormalizedOldAppDir <> '') and (NormalizedOldAppDir <> NormalizedInstallDir) then
   begin
-    RemoveManagedPathEntry(OldInstallDir);
+    RemoveManagedPathEntry(OldAppDir);
   end;
 
   if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) then
