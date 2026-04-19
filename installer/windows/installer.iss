@@ -166,7 +166,7 @@ var
   AddedUserPath: String;
 begin
   Result := False;
-  if (NormalizePathEntry(InstallDir) = '') then
+  if (Trim(InstallDir) = '') then
   begin
     Exit;
   end;
@@ -205,7 +205,7 @@ begin
     NormalizedLastInstallDir := NormalizePathEntry(LastInstallDir);
     if (NormalizedLastInstallDir <> '') and (NormalizedLastInstallDir <> NormalizedInstallDir) then
     begin
-      RemoveManagedPathEntry(LastInstallDir);
+      RemoveManagedPathEntry(NormalizedLastInstallDir);
     end;
   end;
 
@@ -213,7 +213,7 @@ begin
   NormalizedOldAppDir := NormalizePathEntry(OldAppDir);
   if (NormalizedOldAppDir <> '') and (NormalizedOldAppDir <> NormalizedInstallDir) then
   begin
-    RemoveManagedPathEntry(OldAppDir);
+    RemoveManagedPathEntry(NormalizedOldAppDir);
   end;
 
   if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) then
