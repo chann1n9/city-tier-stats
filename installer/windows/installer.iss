@@ -159,13 +159,12 @@ begin
     CtsSmtoAbortIfHung, 5000, ResultCode);
 end;
 
-function RemoveManagedPathEntry(InstallDir: String): Boolean;
+procedure RemoveManagedPathEntry(InstallDir: String);
 var
   Paths: String;
   NewPaths: String;
   AddedUserPath: String;
 begin
-  Result := False;
   if (Trim(InstallDir) = '') then
   begin
     Exit;
@@ -181,7 +180,6 @@ begin
     begin
       RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, NewPaths);
       BroadcastEnvironmentChanged;
-      Result := True;
     end;
   end;
 end;
