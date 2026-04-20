@@ -161,9 +161,56 @@ begin
     CtsSmtoAbortIfHung, 5000, ResultCode);
 end;
 
-function UninstallFromRegistryKey(RootKey: Integer; Subkey: String): String;
+function ParseCommandLine(CommandLine: String; var FileName: String; var Params: String): Boolean;
+var
+  Trimmed: String;
+  EndQuotePos: Integer;
+  SpacePos: Integer;
+begin
+  Result := False;
+  FileName := '';
+  Params := '';
+  Trimmed := Trim(CommandLine);
+
+  if Trimmed = '' then
+  begin
+    Exit;
+  end;
+
+  if Trimmed[1] = '"' then
+  begin
+    EndQuotePos := Pos('"', Copy(Trimmed, 2, Length(Trimmed) - 1));
+    if EndQuotePos <= 0 then
+    begin
+      Exit;
+    end;
+
+    EndQuotePos := EndQuotePos + 1;
+    FileName := Copy(Trimmed, 2, EndQuotePos - 2);
+    Params := Trim(Copy(Trimmed, EndQuotePos + 1, Length(Trimmed) - EndQuotePos));
+  end
+    else
+  begin
+    SpacePos := Pos(' ', Trimmed);
+    if SpacePos > 0 then
+    begin
+      FileName := Copy(Trimmed, 1, SpacePos - 1);
+      Params := Trim(Copy(Trimmed, SpacePos + 1, Length(Trimmed) - SpacePos));
+    end
+      else
+    begin
+      FileName := Trimmed;
+    end;
+  end;
+
+  Result := FileName <> '';
+end;
+
+function UninstallFromRegistryKey(RootKey: Integer; RootKeyName: String; Subkey: String): String;
 var
   QuietUninstallString: String;
+  QuietUninstallExe: String;
+  QuietUninstallParams: String;
   ResultCode: Integer;
 begin
   Result := '';
@@ -179,10 +226,22 @@ begin
     Exit;
   end;
 
-  Log(Format('Detected previous installation at %d\\%s, running QuietUninstallString: %s',
-    [RootKey, Subkey, QuietUninstallString]));
+  if not ParseCommandLine(QuietUninstallString, QuietUninstallExe, QuietUninstallParams) then
+  begin
+    Result := Format('Invalid QuietUninstallString at %s\\%s.', [RootKeyName, Subkey]);
+    Exit;
+  end;
 
-  if not Exec(ExpandConstant('{cmd}'), '/C "' + QuietUninstallString + '"', '',
+  if not FileExists(QuietUninstallExe) then
+  begin
+    Result := Format('Quiet uninstaller does not exist: %s.', [QuietUninstallExe]);
+    Exit;
+  end;
+
+  Log(Format('Detected previous installation at %s\\%s, running %s %s',
+    [RootKeyName, Subkey, QuietUninstallExe, QuietUninstallParams]));
+
+  if not Exec(QuietUninstallExe, QuietUninstallParams, '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode) then
   begin
     Result := Format('Failed to run QuietUninstallString from %s.', [Subkey]);
@@ -197,19 +256,19 @@ end;
 
 function PrepareToInstall(var NeedsRestart: Boolean): String;
 begin
-  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, UninstallSubkey);
+  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, 'HKLM', UninstallSubkey);
   if Result <> '' then
   begin
     Exit;
   end;
 
-  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, Wow64UninstallSubkey);
+  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, 'HKLM', Wow64UninstallSubkey);
   if Result <> '' then
   begin
     Exit;
   end;
 
-  Result := UninstallFromRegistryKey(HKEY_CURRENT_USER, UninstallSubkey);
+  Result := UninstallFromRegistryKey(HKEY_CURRENT_USER, 'HKCU', UninstallSubkey);
 end;
 
 procedure AddInstallDirToUserPath;
