@@ -29,6 +29,9 @@ Name: "{usersendto}\City Tier Stats (Mutiple)"; Filename: "{sys}\WindowsPowerShe
 const
   EnvironmentKey = 'Environment';
   AppRegistryKey = 'Software\City Tier Stats';
+  UninstallSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\City Tier Stats_is1';
+  Wow64UninstallSubkey = 'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\City Tier Stats_is1';
+  QuietUninstallStringValueName = 'QuietUninstallString';
   PathValueName = 'Path';
   AddedUserPathValueName = 'AddedUserPath';
   CtsHwndBroadcast = $FFFF;
@@ -156,6 +159,116 @@ var
 begin
   SendMessageTimeout(CtsHwndBroadcast, CtsWmSettingChange, 0, 'Environment',
     CtsSmtoAbortIfHung, 5000, ResultCode);
+end;
+
+function ParseCommandLine(CommandLine: String; var FileName: String; var Params: String): Boolean;
+var
+  Trimmed: String;
+  EndQuotePos: Integer;
+  SpacePos: Integer;
+begin
+  Result := False;
+  FileName := '';
+  Params := '';
+  Trimmed := Trim(CommandLine);
+
+  if Trimmed = '' then
+  begin
+    Exit;
+  end;
+
+  if Trimmed[1] = '"' then
+  begin
+    EndQuotePos := Pos('"', Copy(Trimmed, 2, Length(Trimmed) - 1));
+    if EndQuotePos <= 0 then
+    begin
+      Exit;
+    end;
+
+    EndQuotePos := EndQuotePos + 1;
+    FileName := Copy(Trimmed, 2, EndQuotePos - 2);
+    Params := Trim(Copy(Trimmed, EndQuotePos + 1, Length(Trimmed) - EndQuotePos));
+  end
+    else
+  begin
+    SpacePos := Pos(' ', Trimmed);
+    if SpacePos > 0 then
+    begin
+      FileName := Copy(Trimmed, 1, SpacePos - 1);
+      Params := Trim(Copy(Trimmed, SpacePos + 1, Length(Trimmed) - SpacePos));
+    end
+      else
+    begin
+      FileName := Trimmed;
+    end;
+  end;
+
+  Result := FileName <> '';
+end;
+
+function UninstallFromRegistryKey(RootKey: Integer; RootKeyName: String; Subkey: String): String;
+var
+  QuietUninstallString: String;
+  QuietUninstallExe: String;
+  QuietUninstallParams: String;
+  ResultCode: Integer;
+begin
+  Result := '';
+
+  if not RegQueryStringValue(RootKey, Subkey, QuietUninstallStringValueName, QuietUninstallString) then
+  begin
+    Exit;
+  end;
+
+  QuietUninstallString := Trim(QuietUninstallString);
+  if QuietUninstallString = '' then
+  begin
+    Exit;
+  end;
+
+  if not ParseCommandLine(QuietUninstallString, QuietUninstallExe, QuietUninstallParams) then
+  begin
+    Result := Format('Invalid QuietUninstallString at %s\\%s.', [RootKeyName, Subkey]);
+    Exit;
+  end;
+
+  if not FileExists(QuietUninstallExe) then
+  begin
+    Result := Format('Quiet uninstaller does not exist: %s.', [QuietUninstallExe]);
+    Exit;
+  end;
+
+  Log(Format('Detected previous installation at %s\\%s, running %s %s',
+    [RootKeyName, Subkey, QuietUninstallExe, QuietUninstallParams]));
+
+  if not Exec(QuietUninstallExe, QuietUninstallParams, '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := Format('Failed to run QuietUninstallString from %s.', [Subkey]);
+    Exit;
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    Result := Format('QuietUninstallString from %s exited with code %d.', [Subkey, ResultCode]);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, 'HKLM', UninstallSubkey);
+  if Result <> '' then
+  begin
+    Exit;
+  end;
+
+  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, 'HKLM', Wow64UninstallSubkey);
+  if Result <> '' then
+  begin
+    Exit;
+  end;
+
+  Result := UninstallFromRegistryKey(HKEY_CURRENT_USER, 'HKCU', UninstallSubkey);
 end;
 
 procedure AddInstallDirToUserPath;
