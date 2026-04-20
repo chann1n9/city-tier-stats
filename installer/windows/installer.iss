@@ -29,9 +29,11 @@ Name: "{usersendto}\City Tier Stats (Mutiple)"; Filename: "{sys}\WindowsPowerShe
 const
   EnvironmentKey = 'Environment';
   AppRegistryKey = 'Software\City Tier Stats';
+  UninstallSubkey = 'Software\Microsoft\Windows\CurrentVersion\Uninstall\City Tier Stats_is1';
+  Wow64UninstallSubkey = 'Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Uninstall\City Tier Stats_is1';
+  QuietUninstallStringValueName = 'QuietUninstallString';
   PathValueName = 'Path';
   AddedUserPathValueName = 'AddedUserPath';
-  LastInstallDirValueName = 'LastInstallDir';
   CtsHwndBroadcast = $FFFF;
   CtsWmSettingChange = $001A;
   CtsSmtoAbortIfHung = $0002;
@@ -159,61 +161,63 @@ begin
     CtsSmtoAbortIfHung, 5000, ResultCode);
 end;
 
-procedure RemoveManagedPathEntry(InstallDir: String);
+function UninstallFromRegistryKey(RootKey: Integer; Subkey: String): String;
 var
-  Paths: String;
-  NewPaths: String;
-  AddedUserPath: String;
+  QuietUninstallString: String;
+  ResultCode: Integer;
 begin
-  if (Trim(InstallDir) = '') then
+  Result := '';
+
+  if not RegQueryStringValue(RootKey, Subkey, QuietUninstallStringValueName, QuietUninstallString) then
   begin
     Exit;
   end;
 
-  if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName,
-    AddedUserPath) and (AddedUserPath = '1') and
-    RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) and
-    PathContainsEntry(Paths, InstallDir) then
+  QuietUninstallString := Trim(QuietUninstallString);
+  if QuietUninstallString = '' then
   begin
-    NewPaths := RemovePathEntry(Paths, InstallDir);
-    if NewPaths <> Paths then
-    begin
-      RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, NewPaths);
-      BroadcastEnvironmentChanged;
-    end;
+    Exit;
   end;
+
+  Log(Format('Detected previous installation at %d\\%s, running QuietUninstallString: %s',
+    [RootKey, Subkey, QuietUninstallString]));
+
+  if not Exec(ExpandConstant('{cmd}'), '/C "' + QuietUninstallString + '"', '',
+    SW_HIDE, ewWaitUntilTerminated, ResultCode) then
+  begin
+    Result := Format('Failed to run QuietUninstallString from %s.', [Subkey]);
+    Exit;
+  end;
+
+  if ResultCode <> 0 then
+  begin
+    Result := Format('QuietUninstallString from %s exited with code %d.', [Subkey, ResultCode]);
+  end;
+end;
+
+function PrepareToInstall(var NeedsRestart: Boolean): String;
+begin
+  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, UninstallSubkey);
+  if Result <> '' then
+  begin
+    Exit;
+  end;
+
+  Result := UninstallFromRegistryKey(HKEY_LOCAL_MACHINE, Wow64UninstallSubkey);
+  if Result <> '' then
+  begin
+    Exit;
+  end;
+
+  Result := UninstallFromRegistryKey(HKEY_CURRENT_USER, UninstallSubkey);
 end;
 
 procedure AddInstallDirToUserPath;
 var
   Paths: String;
   InstallDir: String;
-  NormalizedInstallDir: String;
-  LastInstallDir: String;
-  NormalizedLastInstallDir: String;
-  OldAppDir: String;
-  NormalizedOldAppDir: String;
 begin
   InstallDir := ExpandConstant('{app}');
-  NormalizedInstallDir := NormalizePathEntry(InstallDir);
-
-  if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName,
-    LastInstallDir) then
-  begin
-    NormalizedLastInstallDir := NormalizePathEntry(LastInstallDir);
-    if (NormalizedLastInstallDir <> '') and (NormalizedLastInstallDir <> NormalizedInstallDir) then
-    begin
-      RemoveManagedPathEntry(NormalizedLastInstallDir);
-    end;
-  end;
-
-  OldAppDir := ExpandConstant('{oldapp}');
-  NormalizedOldAppDir := NormalizePathEntry(OldAppDir);
-  if (NormalizedOldAppDir <> '') and (NormalizedOldAppDir <> NormalizedInstallDir) then
-  begin
-    RemoveManagedPathEntry(NormalizedOldAppDir);
-  end;
-
   if not RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) then
   begin
     Paths := '';
@@ -226,15 +230,30 @@ begin
     RegWriteStringValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName, '1');
     BroadcastEnvironmentChanged;
   end;
-
-  RegWriteStringValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName, InstallDir);
 end;
 
 procedure RemoveInstallDirFromUserPath;
+var
+  Paths: String;
+  NewPaths: String;
+  InstallDir: String;
+  AddedUserPath: String;
 begin
-  RemoveManagedPathEntry(ExpandConstant('{app}'));
+  InstallDir := ExpandConstant('{app}');
+  if RegQueryStringValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName,
+    AddedUserPath) and (AddedUserPath = '1') and
+    RegQueryStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, Paths) and
+    PathContainsEntry(Paths, InstallDir) then
+  begin
+    NewPaths := RemovePathEntry(Paths, InstallDir);
+    if NewPaths <> Paths then
+    begin
+      RegWriteExpandStringValue(HKEY_CURRENT_USER, EnvironmentKey, PathValueName, NewPaths);
+      BroadcastEnvironmentChanged;
+    end;
+  end;
+
   RegDeleteValue(HKEY_CURRENT_USER, AppRegistryKey, AddedUserPathValueName);
-  RegDeleteValue(HKEY_CURRENT_USER, AppRegistryKey, LastInstallDirValueName);
 end;
 
 procedure CurStepChanged(CurStep: TSetupStep);
