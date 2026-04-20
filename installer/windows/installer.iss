@@ -238,8 +238,7 @@ begin
     Exit;
   end;
 
-  Log(Format('Detected previous installation at %s\\%s, running %s %s',
-    [RootKeyName, Subkey, QuietUninstallExe, QuietUninstallParams]));
+  Log(Format('Detected previous installation at %s\\%s, running %s %s', [RootKeyName, Subkey, QuietUninstallExe, QuietUninstallParams]));
 
   if not Exec(QuietUninstallExe, QuietUninstallParams, '',
     SW_HIDE, ewWaitUntilTerminated, ResultCode) then
