@@ -205,7 +205,7 @@ for input_file in "${input_files[@]}"; do
   cd "${input_dir}" || exit 1
 
   printf 'Analyzing: %s\n\n' "${input_file}"
-  "${tool_path}" "${input_file}"
+  "${tool_path}" "${input_file}" --group-by
   status=$?
   printf '\nExit code: %s\n' "${status}"
 

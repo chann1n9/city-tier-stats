@@ -18,6 +18,7 @@ from openpyxl import Workbook, load_workbook
 
 DEFAULT_CITY_TIERS_FILE: Final = "city_tiers.yaml"
 LOCATION_COLUMN: Final = "归属地"
+GROUP_BY_COLUMN: Final = "企微名称"
 DETAIL_COLUMNS: Final = ("归属地", "城市", "城市归一化", "分层代码", "分层")
 CSV_ENCODINGS: Final = (
     "utf-8-sig",
@@ -101,8 +102,11 @@ def is_empty_value(value: Any) -> bool:
         return False
 
 
-def read_xlsx_location_column(path: Path, column_name: str) -> list[Any]:
-    """Read the location column from an XLSX file."""
+def read_xlsx_columns(
+    path: Path,
+    column_names: list[str],
+) -> list[dict[str, Any]]:
+    """Read selected columns from an XLSX file."""
     with warnings.catch_warnings():
         warnings.filterwarnings(
             "ignore",
@@ -119,15 +123,20 @@ def read_xlsx_location_column(path: Path, column_name: str) -> list[Any]:
         except StopIteration:
             raise ValueError("文件没有表头行") from None
 
-        if column_name not in headers:
-            raise ValueError(f"文件中没有找到列：{column_name}")
+        missing_columns = [name for name in column_names if name not in headers]
+        if missing_columns:
+            raise ValueError(f"文件中没有找到列：{', '.join(missing_columns)}")
 
-        column_index = headers.index(column_name)
-        locations: list[Any] = []
+        column_indexes = {name: headers.index(name) for name in column_names}
+        selected_rows: list[dict[str, Any]] = []
         for row in rows:
-            value = row[column_index] if column_index < len(row) else None
-            locations.append(value)
-        return locations
+            selected_rows.append(
+                {
+                    name: row[index] if index < len(row) else None
+                    for name, index in column_indexes.items()
+                }
+            )
+        return selected_rows
     finally:
         workbook.close()
 
@@ -163,8 +172,11 @@ def clean_csv_header(header: str | None) -> str:
     return header.strip().lstrip("\ufeff\ufffe\ufffd")
 
 
-def read_csv_location_column(path: Path, column_name: str) -> list[Any]:
-    """Read the location column from a CSV file."""
+def read_csv_columns(
+    path: Path,
+    column_names: list[str],
+) -> list[dict[str, Any]]:
+    """Read selected columns from a CSV file."""
     content = decode_csv_content(path)
     reader = csv.DictReader(
         io.StringIO(content),
@@ -174,28 +186,34 @@ def read_csv_location_column(path: Path, column_name: str) -> list[Any]:
         raise ValueError("文件没有表头行")
 
     header_map = {clean_csv_header(header): header for header in reader.fieldnames}
-    if column_name not in header_map:
+    missing_columns = [name for name in column_names if name not in header_map]
+    if missing_columns:
         found_columns = ", ".join(clean_csv_header(header) for header in reader.fieldnames)
-        raise ValueError(f"文件中没有找到列：{column_name}；当前列：{found_columns}")
+        raise ValueError(
+            f"文件中没有找到列：{', '.join(missing_columns)}；当前列：{found_columns}"
+        )
 
-    raw_column_name = header_map[column_name]
-    locations: list[Any] = []
+    selected_rows: list[dict[str, Any]] = []
     for row in reader:
-        locations.append(row.get(raw_column_name))
-    return locations
+        selected_rows.append(
+            {name: row.get(header_map[name]) for name in column_names}
+        )
+    return selected_rows
 
 
-def read_location_column(file_path: str | Path, column_name: str = LOCATION_COLUMN) -> list[Any]:
-    """Read the location column from an Excel or CSV file."""
+def read_columns(
+    file_path: str | Path,
+    column_names: list[str],
+) -> list[dict[str, Any]]:
+    """Read selected columns from an Excel or CSV file."""
     path = Path(file_path)
     suffix = path.suffix.lower()
 
     if suffix == ".xlsx":
-        return read_xlsx_location_column(path, column_name)
-    elif suffix == ".csv":
-        return read_csv_location_column(path, column_name)
-    else:
-        raise ValueError(f"不支持的文件类型：{suffix or '无扩展名'}")
+        return read_xlsx_columns(path, column_names)
+    if suffix == ".csv":
+        return read_csv_columns(path, column_names)
+    raise ValueError(f"不支持的文件类型：{suffix or '无扩展名'}")
 
 
 def extract_city_name(raw_location: Any) -> str:
@@ -314,6 +332,25 @@ def calculate_tier_stats(
     return results
 
 
+def calculate_grouped_tier_stats(
+    rows: list[dict[str, Any]],
+    location_column: str,
+    group_column: str,
+    city_to_tier: dict[str, str],
+) -> dict[str, list[dict[str, int | float | str]]]:
+    """Calculate city tier statistics within each group."""
+    grouped_locations: dict[str, list[Any]] = {}
+    for row in rows:
+        raw_group = row[group_column]
+        group = "" if is_empty_value(raw_group) else str(raw_group).strip()
+        grouped_locations.setdefault(group or "（空白）", []).append(row[location_column])
+
+    return {
+        group: calculate_tier_stats(locations, city_to_tier)
+        for group, locations in grouped_locations.items()
+    }
+
+
 def build_location_details(
     locations: list[Any],
     city_to_tier: dict[str, str],
@@ -370,6 +407,17 @@ def output_tier_stats(stats: list[dict[str, int | float | str]]) -> None:
         print(f"{label}: {count}, {percentage:.2%}")
 
 
+def output_grouped_tier_stats(
+    grouped_stats: dict[str, list[dict[str, int | float | str]]],
+    group_column: str,
+) -> None:
+    """Print city tier statistics for each group."""
+    print(f"\n按{group_column}分组统计:")
+    for group, stats in grouped_stats.items():
+        print(f"\n{group_column}: {group}")
+        output_tier_stats(stats)
+
+
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="统计归属地城市分层数量和占比")
@@ -385,6 +433,13 @@ def parse_args() -> argparse.Namespace:
         help=f"归属地列名，默认：{LOCATION_COLUMN}",
     )
     parser.add_argument(
+        "--group-by",
+        nargs="?",
+        const=GROUP_BY_COLUMN,
+        metavar="列名",
+        help=f"额外按指定列分组统计；不指定列名时默认：{GROUP_BY_COLUMN}",
+    )
+    parser.add_argument(
         "--detail-output",
         help="导出逐行匹配明细，支持 .xlsx、.csv；默认不导出",
     )
@@ -395,9 +450,23 @@ def main() -> None:
     """Run command line entrypoint."""
     args = parse_args()
     city_to_tier = load_city_tier_mapping(args.config)
-    locations = read_location_column(args.file, args.column)
+    column_names = [args.column]
+    if args.group_by and args.group_by not in column_names:
+        column_names.append(args.group_by)
+
+    rows = read_columns(args.file, column_names)
+    locations = [row[args.column] for row in rows]
     stats = calculate_tier_stats(locations, city_to_tier)
     output_tier_stats(stats)
+
+    if args.group_by:
+        grouped_stats = calculate_grouped_tier_stats(
+            rows,
+            args.column,
+            args.group_by,
+            city_to_tier,
+        )
+        output_grouped_tier_stats(grouped_stats, args.group_by)
 
     if args.detail_output:
         details = build_location_details(locations, city_to_tier)

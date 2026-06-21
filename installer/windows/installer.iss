@@ -23,7 +23,7 @@ Root: HKCR; Subkey: "*\shell\CityTierStats"; ValueType: string; ValueData: "Anal
 Root: HKCR; Subkey: "*\shell\CityTierStats\command"; ValueType: string; ValueData: """{sys}\WindowsPowerShell\v1.0\powershell.exe"" -NoProfile -ExecutionPolicy Bypass -NoExit -File ""{app}\cts-wrapper.ps1"" ""%1"""; Flags: uninsdeletekey
 
 [Icons]
-Name: "{usersendto}\City Tier Stats (Mutiple)"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\cts-wrapper.ps1""";
+Name: "{usersendto}\City Tier Stats (Multiple)"; Filename: "{sys}\WindowsPowerShell\v1.0\powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\cts-wrapper.ps1""";
 
 [Code]
 const

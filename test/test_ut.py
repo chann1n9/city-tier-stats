@@ -17,6 +17,7 @@ from city_tier_stats import (
     TIER_LABELS,
     TIER_ORDER,
     build_location_details,
+    calculate_grouped_tier_stats,
     calculate_tier_stats,
     city_match_keys,
     clean_csv_header,
@@ -27,9 +28,7 @@ from city_tier_stats import (
     match_city_tier,
     match_location_tier,
     normalize_city_name,
-    read_csv_location_column,
-    read_location_column,
-    read_xlsx_location_column,
+    read_columns,
     resolve_config_path,
     sniff_csv_dialect,
     write_location_details,
@@ -269,6 +268,31 @@ class TestCalculateTierStats:
             assert tier_map[tier]["label"] == TIER_LABELS[tier]
 
 
+class TestCalculateGroupedTierStats:
+    def test_calculates_each_group_and_preserves_order(self):
+        rows = [
+            {"归属地": "省-北京-区", "企微名称": "企微甲"},
+            {"归属地": "省-成都-区", "企微名称": "企微乙"},
+            {"归属地": "省-上海-区", "企微名称": "企微甲"},
+        ]
+
+        grouped = calculate_grouped_tier_stats(
+            rows, "归属地", "企微名称", SIMPLE_MAPPING
+        )
+
+        assert list(grouped) == ["企微甲", "企微乙"]
+        first_counts = {row["tier"]: row["count"] for row in grouped["企微甲"]}
+        assert first_counts["first"] == 2
+        assert sum(int(row["count"]) for row in grouped["企微乙"]) == 1
+
+    def test_blank_group_has_display_name(self):
+        rows = [{"归属地": "省-北京-区", "企微名称": None}]
+        grouped = calculate_grouped_tier_stats(
+            rows, "归属地", "企微名称", SIMPLE_MAPPING
+        )
+        assert list(grouped) == ["（空白）"]
+
+
 # ---------------------------------------------------------------------------
 # build_location_details
 # ---------------------------------------------------------------------------
@@ -357,63 +381,36 @@ class TestDecodeCsvContent:
         assert "归属地" in result
 
 
-# ---------------------------------------------------------------------------
-# read_xlsx_location_column
-# ---------------------------------------------------------------------------
-
-class TestReadXlsxLocationColumn:
-    def test_reads_column(self, tmp_path: Path):
-        path = _make_xlsx(tmp_path, [["归属地", "其他"], ["广东-深圳", "x"], ["北京-朝阳", "y"]])
-        result = read_xlsx_location_column(path, "归属地")
-        assert result == ["广东-深圳", "北京-朝阳"]
+class TestReadColumns:
+    def test_reads_multiple_csv_columns(self, tmp_path: Path):
+        path = _make_csv(tmp_path, "归属地,企微名称\n省-北京-区,企微甲\n")
+        assert read_columns(path, ["归属地", "企微名称"]) == [
+            {"归属地": "省-北京-区", "企微名称": "企微甲"}
+        ]
 
     def test_missing_column_raises(self, tmp_path: Path):
-        path = _make_xlsx(tmp_path, [["城市", "人口"], ["深圳", 100]])
-        with pytest.raises(ValueError, match="没有找到列"):
-            read_xlsx_location_column(path, "归属地")
+        path = _make_csv(tmp_path, "归属地\n省-北京-区\n")
+        with pytest.raises(ValueError, match="没有找到列：企微名称"):
+            read_columns(path, ["归属地", "企微名称"])
 
-    def test_empty_file_raises(self, tmp_path: Path):
+    def test_empty_xlsx_raises(self, tmp_path: Path):
         path = _make_xlsx(tmp_path, [])
         with pytest.raises(ValueError, match="没有表头行"):
-            read_xlsx_location_column(path, "归属地")
-
-
-# ---------------------------------------------------------------------------
-# read_csv_location_column
-# ---------------------------------------------------------------------------
-
-class TestReadCsvLocationColumn:
-    def test_reads_column(self, tmp_path: Path):
-        path = _make_csv(tmp_path, "归属地,其他\n广东-深圳,x\n北京-朝阳,y\n")
-        result = read_csv_location_column(path, "归属地")
-        assert result == ["广东-深圳", "北京-朝阳"]
-
-    def test_missing_column_raises(self, tmp_path: Path):
-        path = _make_csv(tmp_path, "城市,人口\n深圳,100\n")
-        with pytest.raises(ValueError, match="没有找到列"):
-            read_csv_location_column(path, "归属地")
-
-
-# ---------------------------------------------------------------------------
-# read_location_column (dispatcher)
-# ---------------------------------------------------------------------------
-
-class TestReadLocationColumn:
-    def test_xlsx_dispatched(self, tmp_path: Path):
-        path = _make_xlsx(tmp_path, [["归属地"], ["广东-深圳"]])
-        result = read_location_column(path, "归属地")
-        assert result == ["广东-深圳"]
-
-    def test_csv_dispatched(self, tmp_path: Path):
-        path = _make_csv(tmp_path, "归属地\n北京-朝阳\n")
-        result = read_location_column(path, "归属地")
-        assert result == ["北京-朝阳"]
+            read_columns(path, ["归属地"])
 
     def test_unsupported_extension_raises(self, tmp_path: Path):
         path = tmp_path / "data.txt"
-        path.write_text("hello")
         with pytest.raises(ValueError, match="不支持的文件类型"):
-            read_location_column(path, "归属地")
+            read_columns(path, ["归属地"])
+
+    def test_reads_multiple_xlsx_columns(self, tmp_path: Path):
+        path = _make_xlsx(
+            tmp_path,
+            [["归属地", "企微名称"], ["省-北京-区", "企微甲"]],
+        )
+        assert read_columns(path, ["归属地", "企微名称"]) == [
+            {"归属地": "省-北京-区", "企微名称": "企微甲"}
+        ]
 
 
 # ---------------------------------------------------------------------------

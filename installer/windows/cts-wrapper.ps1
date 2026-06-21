@@ -23,7 +23,7 @@ try {
     Write-Host ("[{0}/{1}] {2}" -f ($i + 1), $items.Count, $p)
 
     # 依赖安装时写入 PATH：直接调用
-    & "city-tier-stats.exe" $p
+    & "city-tier-stats.exe" $p --group-by
 
     if ($LASTEXITCODE -ne 0) {
       Write-Host "ExitCode: $LASTEXITCODE" -ForegroundColor Yellow

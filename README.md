@@ -93,6 +93,22 @@ city-tier-stats data.csv
 city-tier-stats data.xlsx --column 城市归属地
 ```
 
+## 按另一列分组统计
+
+整体城市分层统计始终会输出。如果还需要查看各个企微名称内部的城市分层，可以添加：
+
+```bash
+city-tier-stats data.xlsx --group-by
+```
+
+`--group-by` 不指定列名时，默认使用 `企微名称` 列。也可以指定其他分组列：
+
+```bash
+city-tier-stats data.xlsx --group-by 渠道
+```
+
+此时程序会先输出整体统计，再追加每个分组内部的数量和占比。空白分组显示为 `（空白）`，各组按照输入文件中首次出现的顺序输出。
+
 ## 导出逐行明细
 
 默认不会导出明细文件。如果需要查看每一行匹配到了哪个城市和分层，可以使用 `--detail-output`：
