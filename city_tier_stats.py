@@ -15,6 +15,8 @@ from typing import Any, Final
 import yaml
 from openpyxl import Workbook, load_workbook
 
+from _version import __version__
+
 
 DEFAULT_CITY_TIERS_FILE: Final = "city_tiers.yaml"
 LOCATION_COLUMN: Final = "归属地"
@@ -421,6 +423,12 @@ def output_grouped_tier_stats(
 def parse_args() -> argparse.Namespace:
     """Parse command line arguments."""
     parser = argparse.ArgumentParser(description="统计归属地城市分层数量和占比")
+    parser.add_argument(
+        "--version",
+        action="version",
+        version=f"%(prog)s {__version__}",
+        help="显示版本号并退出",
+    )
     parser.add_argument("file", help="输入文件，支持 .xlsx、.csv")
     parser.add_argument(
         "-c",

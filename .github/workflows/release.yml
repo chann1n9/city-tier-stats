@@ -71,6 +71,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Generate runtime version
+        shell: pwsh
+        run: python scripts/generate_version.py
   
       - name: Install dependencies
         shell: pwsh
@@ -140,6 +144,10 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+
+      - name: Generate runtime version
+        shell: bash
+        run: python scripts/generate_version.py
 
       - name: Install dependencies
         shell: bash

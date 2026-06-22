@@ -5,6 +5,7 @@ from __future__ import annotations
 import csv
 import io
 import math
+import sys
 import textwrap
 from pathlib import Path
 
@@ -28,11 +29,13 @@ from city_tier_stats import (
     match_city_tier,
     match_location_tier,
     normalize_city_name,
+    parse_args,
     read_columns,
     resolve_config_path,
     sniff_csv_dialect,
     write_location_details,
 )
+from _version import __version__
 
 
 # ---------------------------------------------------------------------------
@@ -71,6 +74,16 @@ SIMPLE_MAPPING: dict[str, str] = {
     "武汉": "new_first",
     "厦门": "second",
 }
+
+
+def test_version_flag(monkeypatch, capsys):
+    monkeypatch.setattr(sys, "argv", ["city-tier-stats", "--version"])
+
+    with pytest.raises(SystemExit) as error:
+        parse_args()
+
+    assert error.value.code == 0
+    assert capsys.readouterr().out == f"city-tier-stats {__version__}\n"
 
 
 # ---------------------------------------------------------------------------

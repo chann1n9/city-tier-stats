@@ -4,6 +4,7 @@ on:
   workflow_dispatch:
 
 permissions:
+  actions: write
   contents: write
 
 jobs:
@@ -12,6 +13,17 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
+      - name: Ensure workflow runs from main
+        shell: bash
+        run: |
+          set -euo pipefail
+
+          if [ "${GITHUB_REF}" != "refs/heads/main" ]; then
+            echo "Tag workflow must run from the main branch." >&2
+            echo "Current ref: ${GITHUB_REF}" >&2
+            exit 1
+          fi
+
       - name: Checkout
         uses: actions/checkout@v4
         with:
@@ -55,6 +67,13 @@ jobs:
           PY
           )"
           TAG="v${VERSION}"
+          NOTES_FILE="docs/release-notes/${TAG}.md"
+
+          if [ ! -f "${NOTES_FILE}" ]; then
+            echo "Release note not found: ${NOTES_FILE}" >&2
+            exit 1
+          fi
+
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
           echo "tag=$TAG" >> "$GITHUB_OUTPUT"
 
@@ -87,3 +106,12 @@ jobs:
           set -euo pipefail
           git tag "${TAG}"
           git push origin "${TAG}"
+
+      - name: Start release workflow
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.version.outputs.tag }}
+        run: |
+          set -euo pipefail
+          gh workflow run release.yml --ref "${TAG}"
